@@ -55,6 +55,30 @@ Gradle would produce a single `-myoption` or combine the option's value into a s
         }
     }
 
+### Plugin resolution rules
+
+Gradle now allows you to adjust how plugins are resolved by providing plugin resolution rules. For instance, you could
+specify a default version for a plugin so you don't have to repeat it in every project. Or you could tell Gradle what implementation artifact it should
+look for in case the plugin is not published with plugin markers.
+
+   pluginManagement {
+     repositories {
+       maven { url = 'someUrl'}
+     }
+     resolutionStrategy {
+       eachPlugin {
+         if (requested.id.namespace = 'my.plugins') {
+            useTarget {
+                version = '1.3'
+            }
+         }
+       }
+     }
+   }
+
+The `pluginManagement` block supersedes the existing `pluginRepositories` block. Moreover, you now have full access to the `Settings` DSL inside that block,
+so you can make decisions e.g. based on start parameters. You can also configure plugin management from an init script by using the `settingsEvaluated {}` hook.
+
 <!--
 ### Example new and noteworthy
 -->
@@ -78,6 +102,10 @@ Features that have become superseded or irrelevant due to the natural evolution 
 in the next major Gradle version (Gradle 4.0). See the User guide section on the “[Feature Lifecycle](userguide/feature_lifecycle.html)” for more information.
 
 The following are the newly deprecated items in this Gradle release. If you have concerns about a deprecation, please raise it via the [Gradle Forums](https://discuss.gradle.org).
+
+### pluginRepositories block superseded
+
+The `pluginRepositories` method in `settings.gradle` is superseded by the new `pluginManagement.repositories` method.
 
 <!--
 ### Example deprecation
@@ -123,6 +151,7 @@ We would like to thank the following community members for making contributions 
  - [Björn Kautler](https://github.com/Vampire) - Update user guide for build comparison about supported builds ([gradle/gradle#1266](https://github.com/gradle/gradle/pull/1266))
  - [Joshua Street](https://github.com/jjstreet) - Align usage of `groovy-all` dependency across multiple example in user guide ([gradle/gradle#1446](https://github.com/gradle/gradle/pull/1446))
  - [Lucas Smaira](https://github.com/lsmaira) - BuildActionExecutor.forTasks() support ([gradle/gradle#1442](https://github.com/gradle/gradle/pull/1442))
+ - [Ethan Hall](https://github.com/ethankhall) - Plugin resolution rules ([gradle/gradle#1343](https://github.com/gradle/gradle/pull/1343))
 
 We love getting contributions from the Gradle community. For information on contributing, please see [gradle.org/contribute](https://gradle.org/contribute).
 
