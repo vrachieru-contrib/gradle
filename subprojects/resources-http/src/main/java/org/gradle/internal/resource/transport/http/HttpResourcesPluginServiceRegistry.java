@@ -18,9 +18,9 @@ package org.gradle.internal.resource.transport.http;
 
 import org.gradle.authentication.http.BasicAuthentication;
 import org.gradle.authentication.http.DigestAuthentication;
+import org.gradle.internal.authentication.AuthenticationSchemeRegistry;
 import org.gradle.internal.authentication.DefaultBasicAuthentication;
 import org.gradle.internal.authentication.DefaultDigestAuthentication;
-import org.gradle.internal.authentication.AuthenticationSchemeRegistry;
 import org.gradle.internal.resource.connector.ResourceConnectorFactory;
 import org.gradle.internal.service.ServiceRegistration;
 import org.gradle.internal.service.scopes.PluginServiceRegistry;
@@ -51,6 +51,7 @@ public class HttpResourcesPluginServiceRegistry implements PluginServiceRegistry
         ResourceConnectorFactory createHttpConnectorFactory(SslContextFactory sslContextFactory) {
             return new HttpConnectorFactory(sslContextFactory);
         }
+
     }
 
     private static class AuthenticationSchemeAction {

@@ -17,6 +17,7 @@
 package org.gradle.api.internal.artifacts.ivyservice.ivyresolve
 
 import com.google.common.collect.Lists
+import org.gradle.api.artifacts.component.ComponentIdentifier
 import org.gradle.api.internal.artifacts.ComponentMetadataProcessor
 import org.gradle.api.internal.artifacts.ComponentSelectionRulesInternal
 import org.gradle.api.internal.artifacts.ImmutableModuleIdentifierFactory
@@ -31,6 +32,7 @@ import org.gradle.api.internal.artifacts.ivyservice.modulecache.ModuleMetaDataCa
 import org.gradle.api.internal.artifacts.repositories.ResolutionAwareRepository
 import org.gradle.api.internal.artifacts.repositories.resolver.ExternalResourceResolver
 import org.gradle.api.internal.artifacts.repositories.resolver.VersionLister
+import org.gradle.cache.internal.ProducerGuard
 import org.gradle.internal.component.external.model.ModuleComponentArtifactMetadata
 import org.gradle.internal.resource.cached.CachedArtifactIndex
 import org.gradle.internal.resource.local.FileStore
@@ -53,6 +55,7 @@ class ResolveIvyFactoryTest extends Specification {
     VersionSelectorScheme versionSelectorScheme
     VersionComparator versionComparator
     ImmutableModuleIdentifierFactory moduleIdentifierFactory
+    ProducerGuard<ComponentIdentifier> producerAccess
 
     def setup() {
         moduleVersionsCache = Mock(ModuleVersionsCache)
@@ -70,10 +73,11 @@ class ResolveIvyFactoryTest extends Specification {
         moduleIdentifierFactory = Mock(ImmutableModuleIdentifierFactory)
         versionSelectorScheme = Mock(VersionSelectorScheme)
         versionComparator = Mock(VersionComparator)
+        producerAccess = Mock(ProducerGuard)
 
         resolveIvyFactory = new ResolveIvyFactory(moduleVersionsCache, moduleMetaDataCache, moduleArtifactsCache,
             cachedArtifactIndex, cacheLockingManager, startParameterResolutionOverride, buildCommencedTimeProvider,
-            inMemoryCachedRepositoryFactory, versionSelectorScheme, versionComparator, moduleIdentifierFactory)
+            inMemoryCachedRepositoryFactory, versionSelectorScheme, versionComparator, moduleIdentifierFactory, producerAccess)
     }
 
     def "returns an empty resolver when no repositories are configured" () {

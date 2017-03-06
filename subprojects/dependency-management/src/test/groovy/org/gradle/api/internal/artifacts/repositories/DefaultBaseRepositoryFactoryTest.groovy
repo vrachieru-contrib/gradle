@@ -46,8 +46,7 @@ class DefaultBaseRepositoryFactoryTest extends Specification {
 
     final DefaultBaseRepositoryFactory factory = new DefaultBaseRepositoryFactory(
         localMavenRepoLocator, fileResolver, DirectInstantiator.INSTANCE, transportFactory, locallyAvailableResourceFinder,
-        artifactIdentifierFileStore, pomParser, authenticationSchemeRegistry, ivyContextManager, moduleIdentifierFactory
-    )
+        artifactIdentifierFileStore, pomParser, authenticationSchemeRegistry, ivyContextManager, moduleIdentifierFactory)
 
     def testCreateFlatDirResolver() {
         expect:

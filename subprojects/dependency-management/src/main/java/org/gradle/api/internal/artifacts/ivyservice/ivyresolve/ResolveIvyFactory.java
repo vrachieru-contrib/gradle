@@ -32,6 +32,8 @@ import org.gradle.api.internal.artifacts.ivyservice.resolutionstrategy.DefaultCo
 import org.gradle.api.internal.artifacts.repositories.ResolutionAwareRepository;
 import org.gradle.api.internal.artifacts.repositories.resolver.ExternalResourceResolver;
 import org.gradle.api.internal.component.ArtifactType;
+import org.gradle.cache.internal.ProducerGuard;
+import org.gradle.internal.Factory;
 import org.gradle.internal.component.model.ComponentArtifactMetadata;
 import org.gradle.internal.component.model.ComponentOverrideMetadata;
 import org.gradle.internal.component.model.ComponentResolveMetadata;
@@ -62,12 +64,13 @@ public class ResolveIvyFactory {
     private final VersionSelectorScheme versionSelectorScheme;
     private final VersionComparator versionComparator;
     private final ImmutableModuleIdentifierFactory moduleIdentifierFactory;
+    private final ProducerGuard<ComponentIdentifier> producerGuard;
 
     public ResolveIvyFactory(ModuleVersionsCache moduleVersionsCache, ModuleMetaDataCache moduleMetaDataCache, ModuleArtifactsCache moduleArtifactsCache,
                              CachedArtifactIndex artifactAtRepositoryCachedResolutionIndex,
                              CacheLockingManager cacheLockingManager, StartParameterResolutionOverride startParameterResolutionOverride,
                              BuildCommencedTimeProvider timeProvider, InMemoryCachedRepositoryFactory inMemoryCache, VersionSelectorScheme versionSelectorScheme,
-                             VersionComparator versionComparator, ImmutableModuleIdentifierFactory moduleIdentifierFactory) {
+                             VersionComparator versionComparator, ImmutableModuleIdentifierFactory moduleIdentifierFactory, ProducerGuard<ComponentIdentifier> producerGuard) {
         this.moduleVersionsCache = moduleVersionsCache;
         this.moduleMetaDataCache = moduleMetaDataCache;
         this.moduleArtifactsCache = moduleArtifactsCache;
@@ -79,11 +82,12 @@ public class ResolveIvyFactory {
         this.versionSelectorScheme = versionSelectorScheme;
         this.versionComparator = versionComparator;
         this.moduleIdentifierFactory = moduleIdentifierFactory;
+        this.producerGuard = producerGuard;
     }
 
     public ComponentResolvers create(ResolutionStrategyInternal resolutionStrategy,
-                                  Collection<? extends ResolutionAwareRepository> repositories,
-                                  ComponentMetadataProcessor metadataProcessor) {
+                                     Collection<? extends ResolutionAwareRepository> repositories,
+                                     ComponentMetadataProcessor metadataProcessor) {
         if (repositories.isEmpty()) {
             return new NoRepositoriesResolver();
         }
@@ -110,13 +114,14 @@ public class ResolveIvyFactory {
                 moduleComponentRepository = new CacheLockReleasingModuleComponentsRepository(moduleComponentRepository, cacheLockingManager);
                 moduleComponentRepository = startParameterResolutionOverride.overrideModuleVersionRepository(moduleComponentRepository);
                 moduleComponentRepository = new CachingModuleComponentRepository(moduleComponentRepository, moduleVersionsCache, moduleMetaDataCache, moduleArtifactsCache, artifactAtRepositoryCachedResolutionIndex,
-                        cachePolicy, timeProvider, metadataProcessor, moduleIdentifierFactory);
+                    cachePolicy, timeProvider, metadataProcessor, moduleIdentifierFactory);
             }
 
             if (baseRepository.isDynamicResolveMode()) {
                 moduleComponentRepository = IvyDynamicResolveModuleComponentRepositoryAccess.wrap(moduleComponentRepository);
             }
             moduleComponentRepository = inMemoryCache.cached(moduleComponentRepository);
+            moduleComponentRepository = coordinateAccess(moduleComponentRepository);
             moduleComponentRepository = new ErrorHandlingModuleComponentRepository(moduleComponentRepository);
 
             moduleResolver.add(moduleComponentRepository);
@@ -124,6 +129,22 @@ public class ResolveIvyFactory {
         }
 
         return moduleResolver;
+    }
+
+    protected ModuleComponentRepository coordinateAccess(ModuleComponentRepository moduleComponentRepository) {
+        moduleComponentRepository = new CoordinatingModuleComponentRepository(moduleComponentRepository, new ProducerGuard<ComponentIdentifier>() {
+            @Override
+            public <V> V guardByKey(ComponentIdentifier key, final Factory<V> factory) {
+                return producerGuard.guardByKey(key, new Factory<V>() {
+                    @Override
+                    public V create() {
+                        return cacheLockingManager.useCache(factory);
+                    }
+                });
+            }
+        });
+        moduleComponentRepository = new CacheLockReleasingModuleComponentsRepository(moduleComponentRepository, cacheLockingManager);
+        return moduleComponentRepository;
     }
 
     /**

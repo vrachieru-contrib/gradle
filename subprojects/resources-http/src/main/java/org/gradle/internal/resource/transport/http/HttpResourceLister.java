@@ -18,6 +18,7 @@ package org.gradle.internal.resource.transport.http;
 
 import org.gradle.api.resources.ResourceException;
 import org.gradle.internal.resource.ResourceExceptions;
+import org.gradle.internal.resource.transfer.ExternalResourceAccessor;
 import org.gradle.internal.resource.transfer.ExternalResourceLister;
 import org.gradle.internal.resource.transfer.ExternalResourceReadResponse;
 
@@ -27,9 +28,9 @@ import java.net.URI;
 import java.util.List;
 
 public class HttpResourceLister implements ExternalResourceLister {
-    private HttpResourceAccessor accessor;
+    private final ExternalResourceAccessor accessor;
 
-    public HttpResourceLister(HttpResourceAccessor accessor) {
+    public HttpResourceLister(ExternalResourceAccessor accessor) {
         this.accessor = accessor;
     }
 
