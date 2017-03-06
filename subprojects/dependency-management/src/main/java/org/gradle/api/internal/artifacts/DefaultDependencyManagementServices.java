@@ -36,7 +36,6 @@ import org.gradle.api.internal.artifacts.dsl.PublishArtifactNotationParserFactor
 import org.gradle.api.internal.artifacts.dsl.dependencies.DefaultDependencyHandler;
 import org.gradle.api.internal.artifacts.dsl.dependencies.DependencyFactory;
 import org.gradle.api.internal.artifacts.dsl.dependencies.ProjectFinder;
-import org.gradle.api.internal.artifacts.ivyservice.ArtifactCacheMetaData;
 import org.gradle.api.internal.artifacts.ivyservice.CacheLockingManager;
 import org.gradle.api.internal.artifacts.ivyservice.DefaultConfigurationResolver;
 import org.gradle.api.internal.artifacts.ivyservice.ErrorHandlingConfigurationResolver;
@@ -114,8 +113,8 @@ public class DefaultDependencyManagementServices implements DependencyManagement
             return instantiator.newInstance(DefaultAttributesSchema.class, new ComponentAttributeMatcher());
         }
 
-        VariantTransformRegistry createVariantTransforms(Instantiator instantiator, ImmutableAttributesFactory attributesFactory, TransformedFileCache transformedFileCache, ArtifactCacheMetaData artifactCacheMetaData, ValueSnapshotter valueSnapshotter, GenericFileCollectionSnapshotter fileCollectionSnapshotter, ClassLoaderHierarchyHasher classLoaderHierarchyHasher) {
-            return instantiator.newInstance(DefaultVariantTransformRegistry.class, instantiator, attributesFactory, transformedFileCache, artifactCacheMetaData, valueSnapshotter, fileCollectionSnapshotter, classLoaderHierarchyHasher);
+        VariantTransformRegistry createVariantTransforms(Instantiator instantiator, ImmutableAttributesFactory attributesFactory, TransformedFileCache transformedFileCache, GenericFileCollectionSnapshotter fileCollectionSnapshotter, ValueSnapshotter valueSnapshotter, ClassLoaderHierarchyHasher classLoaderHierarchyHasher) {
+            return instantiator.newInstance(DefaultVariantTransformRegistry.class, instantiator, attributesFactory, transformedFileCache, fileCollectionSnapshotter, valueSnapshotter, classLoaderHierarchyHasher);
         }
 
         BaseRepositoryFactory createBaseRepositoryFactory(LocalMavenRepositoryLocator localMavenRepositoryLocator, Instantiator instantiator, FileResolver fileResolver,
@@ -216,7 +215,6 @@ public class DefaultDependencyManagementServices implements DependencyManagement
                                                        VariantTransformRegistry variantTransforms,
                                                        ImmutableModuleIdentifierFactory moduleIdentifierFactory,
                                                        ImmutableAttributesFactory attributesFactory,
-                                                       TransformedFileCache transformedFileCache,
                                                        ModuleExclusions moduleExclusions) {
             return new ErrorHandlingConfigurationResolver(
                     new ShortCircuitEmptyConfigurationResolver(

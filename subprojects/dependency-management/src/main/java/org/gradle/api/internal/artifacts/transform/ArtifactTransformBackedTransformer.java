@@ -16,75 +16,61 @@
 
 package org.gradle.api.internal.artifacts.transform;
 
-import com.google.common.hash.HashCode;
 import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.transform.ArtifactTransform;
 import org.gradle.api.artifacts.transform.VariantTransformConfigurationException;
-import org.gradle.api.internal.artifacts.ivyservice.ArtifactCacheMetaData;
-import org.gradle.api.internal.changedetection.state.FileCollectionSnapshot;
-import org.gradle.api.internal.changedetection.state.GenericFileCollectionSnapshotter;
-import org.gradle.api.internal.changedetection.state.TaskFilePropertyCompareStrategy;
-import org.gradle.api.internal.changedetection.state.TaskFilePropertySnapshotNormalizationStrategy;
-import org.gradle.api.internal.file.collections.SimpleFileCollection;
-import org.gradle.caching.internal.DefaultBuildCacheHasher;
 import org.gradle.internal.reflect.DirectInstantiator;
 import org.gradle.internal.reflect.ObjectInstantiationException;
+import org.gradle.internal.util.BiFunction;
 import org.gradle.model.internal.type.ModelType;
 
 import java.io.File;
 import java.util.List;
 
-class ArtifactTransformBackedTransformer implements Transformer<List<File>, File> {
-    private final Class<? extends ArtifactTransform> type;
+class ArtifactTransformBackedTransformer implements BiFunction<List<File>, File, File> {
+    private final Class<? extends ArtifactTransform> implementationClass;
     private final Object[] parameters;
-    private final ArtifactCacheMetaData artifactCacheMetaData;
-    private final HashCode inputsHash;
-    private final GenericFileCollectionSnapshotter fileCollectionSnapshotter;
 
-    ArtifactTransformBackedTransformer(Class<? extends ArtifactTransform> type, Object[] parameters, ArtifactCacheMetaData artifactCacheMetaData, HashCode inputsHash, GenericFileCollectionSnapshotter fileCollectionSnapshotter) {
-        this.type = type;
+    ArtifactTransformBackedTransformer(Class<? extends ArtifactTransform> implementationClass, Object[] parameters) {
+        this.implementationClass = implementationClass;
         this.parameters = parameters;
-        this.artifactCacheMetaData = artifactCacheMetaData;
-        this.inputsHash = inputsHash;
-        this.fileCollectionSnapshotter = fileCollectionSnapshotter;
     }
 
     @Override
-    public List<File> transform(File file) {
-        // Snapshot the input files
-        file = file.getAbsoluteFile();
-        FileCollectionSnapshot snapshot = fileCollectionSnapshotter.snapshot(new SimpleFileCollection(file), TaskFilePropertyCompareStrategy.UNORDERED, TaskFilePropertySnapshotNormalizationStrategy.ABSOLUTE);
-
+    public List<File> apply(File file, File outputDir) {
         ArtifactTransform artifactTransform = create();
-
-        DefaultBuildCacheHasher hasher = new DefaultBuildCacheHasher();
-        hasher.putBytes(inputsHash.asBytes());
-        snapshot.appendToHasher(hasher);
-
-        File outputDir = new File(artifactCacheMetaData.getTransformsStoreDirectory(), file.getName() + "/" + hasher.hash());
-        outputDir.mkdirs();
-
         artifactTransform.setOutputDirectory(outputDir);
         List<File> outputs = artifactTransform.transform(file);
         if (outputs == null) {
-            throw new InvalidUserDataException("Illegal null output from ArtifactTransform");
+            throw new InvalidUserDataException("Transform returned null result.");
         }
+        String inputFilePrefix = file.getPath() + File.separator;
+        String outputDirPrefix = outputDir.getPath() + File.separator;
         for (File output : outputs) {
             if (!output.exists()) {
-                throw new InvalidUserDataException("ArtifactTransform output '" + output.getPath() + "' does not exist");
+                throw new InvalidUserDataException("Transform output file " + output.getPath() + " does not exist.");
             }
+            if (output.equals(file) || output.equals(outputDir)) {
+                continue;
+            }
+            if (output.getPath().startsWith(outputDirPrefix)) {
+                continue;
+            }
+            if (output.getPath().startsWith(inputFilePrefix)) {
+                continue;
+            }
+            throw new InvalidUserDataException("Transform output file " + output.getPath() + " is not a child of the transform's input file or output directory.");
         }
         return outputs;
     }
 
     private ArtifactTransform create() {
         try {
-            return DirectInstantiator.INSTANCE.newInstance(type, parameters);
+            return DirectInstantiator.INSTANCE.newInstance(implementationClass, parameters);
         } catch (ObjectInstantiationException e) {
-            throw new VariantTransformConfigurationException("Could not create instance of " + ModelType.of(type).getDisplayName() + ".", e.getCause());
+            throw new VariantTransformConfigurationException("Could not create instance of " + ModelType.of(implementationClass).getDisplayName() + ".", e.getCause());
         } catch (RuntimeException e) {
-            throw new VariantTransformConfigurationException("Could not create instance of " + ModelType.of(type).getDisplayName() + ".", e);
+            throw new VariantTransformConfigurationException("Could not create instance of " + ModelType.of(implementationClass).getDisplayName() + ".", e);
         }
     }
 

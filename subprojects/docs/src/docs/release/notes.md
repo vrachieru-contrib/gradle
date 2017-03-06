@@ -10,8 +10,8 @@ Add-->
 ### More work avoidance when using `@Classpath` task properties
 
 For built-in and custom tasks that use the `@Classpath` annotation, Gradle now performs deeper inspection of the classpath to filter out some differences that do not affect task execution.  Gradle will ignore changes to timestamps within a jar file and the order of entries inside a jar file.
- 
-In previous versions, for tasks like `Javadoc`, `Checkstyle` and `Test`, Gradle would consider the task out-of-date if the content of the classpath changed in any way (order of classes in a jar, timestamps of class files, etc). 
+
+In previous versions, for tasks like `Javadoc`, `Checkstyle` and `Test`, Gradle would consider the task out-of-date if the content of the classpath changed in any way (order of classes in a jar, timestamps of class files, etc).
 
 ### Extensions now have a public type
 
@@ -42,7 +42,7 @@ In previous versions of Gradle, it was not possible to supply command-line optio
 
     -myoption 'foo' 'bar'
     -myoption 'baz'
-    
+
 Gradle would produce a single `-myoption` or combine the option's value into a single argument.
 
     javadoc {
@@ -152,6 +152,8 @@ We would like to thank the following community members for making contributions 
  - [Joshua Street](https://github.com/jjstreet) - Align usage of `groovy-all` dependency across multiple example in user guide ([gradle/gradle#1446](https://github.com/gradle/gradle/pull/1446))
  - [Lucas Smaira](https://github.com/lsmaira) - BuildActionExecutor.forTasks() support ([gradle/gradle#1442](https://github.com/gradle/gradle/pull/1442))
  - [Ethan Hall](https://github.com/ethankhall) - Plugin resolution rules ([gradle/gradle#1343](https://github.com/gradle/gradle/pull/1343))
+ - [Thomas Broyer](https://github.com/tbroyer) - Fix SourceSet.compileClasspath default value documentation ([gradle/gradle#1329](https://github.com/gradle/gradle/pull/1329))
+ - [Erhan Karakaya](https://github.com/er-han) - Fix bug in generating distributionUrl in Thurkish locale ([gradle/gradle#1408](https://github.com/gradle/gradle/pull/1408))
 
 We love getting contributions from the Gradle community. For information on contributing, please see [gradle.org/contribute](https://gradle.org/contribute).
 

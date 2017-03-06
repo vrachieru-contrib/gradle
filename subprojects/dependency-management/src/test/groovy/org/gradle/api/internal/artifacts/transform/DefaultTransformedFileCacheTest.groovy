@@ -17,38 +17,85 @@
 package org.gradle.api.internal.artifacts.transform
 
 import com.google.common.hash.HashCode
-import org.gradle.api.Transformer
+import org.gradle.api.internal.artifacts.ivyservice.ArtifactCacheMetaData
+import org.gradle.api.internal.changedetection.state.InMemoryCacheDecoratorFactory
+import org.gradle.cache.internal.CacheScopeMapping
+import org.gradle.cache.internal.DefaultCacheRepository
+import org.gradle.internal.util.BiFunction
 import org.gradle.test.fixtures.concurrent.ConcurrentSpec
+import org.gradle.test.fixtures.file.TestNameTestDirectoryProvider
+import org.gradle.testfixtures.internal.InMemoryCacheFactory
+import org.gradle.util.UsesNativeServices
+import org.junit.Rule
 
+@UsesNativeServices
 class DefaultTransformedFileCacheTest extends ConcurrentSpec {
-    def cache = new DefaultTransformedFileCache()
+    @Rule
+    TestNameTestDirectoryProvider tmpDir = new TestNameTestDirectoryProvider()
+    def artifactCacheMetaData = Mock(ArtifactCacheMetaData)
+    def scopeMapping = Stub(CacheScopeMapping)
+    def cacheRepo = new DefaultCacheRepository(scopeMapping, new InMemoryCacheFactory())
+    def decorator = Stub(InMemoryCacheDecoratorFactory)
+    def cache
+
+    def setup() {
+        scopeMapping.getBaseDirectory(_, _, _) >> tmpDir.testDirectory
+        scopeMapping.getRootDirectory(_) >> tmpDir.testDirectory
+        artifactCacheMetaData.transformsStoreDirectory >> tmpDir.file("output")
+        cache = new DefaultTransformedFileCache(artifactCacheMetaData, cacheRepo, decorator)
+    }
 
     def "reuses result for given file and transform"() {
-        def transform = Mock(Transformer)
+        def transform = Mock(BiFunction)
+        def inputFile = tmpDir.file("a")
 
         when:
-        def cachingTransform = cache.applyCaching(HashCode.fromInt(123), transform)
-        def result = cachingTransform.transform(new File("a"))
+        def result = cache.getResult(inputFile, HashCode.fromInt(123), transform)
 
         then:
-        result == [new File("a.1")]
+        result*.name == ["a.1"]
 
         and:
-        1 * transform.transform(new File("a")) >> [new File("a.1")]
+        1 * transform.apply(inputFile, _) >>  { File file, File dir -> def r = new File(dir, "a.1"); r.text = "result"; [r] }
         0 * transform._
 
         when:
-        def result2 = cachingTransform.transform(new File("a"))
+        def result2 = cache.getResult(inputFile, HashCode.fromInt(123), transform)
 
         then:
-        result2 == [new File("a.1")]
+        result2 == result
+
+        and:
+        0 * transform._
+    }
+
+    def "reuses result when transform returns input file"() {
+        def transform = Mock(BiFunction)
+        def inputFile = tmpDir.file("a").createFile()
+
+        when:
+        def result = cache.getResult(inputFile, HashCode.fromInt(123), transform)
+
+        then:
+        result == [inputFile]
+
+        and:
+        1 * transform.apply(inputFile, _) >>  { File file, File dir -> [file] }
+        0 * transform._
+
+        when:
+        def result2 = cache.getResult(inputFile, HashCode.fromInt(123), transform)
+
+        then:
+        result2 == result
 
         and:
         0 * transform._
     }
 
     def "applies transform once when requested concurrently by multiple threads"() {
-        def transform = Mock(Transformer)
+        def transform = Mock(BiFunction)
+        def inputFile = tmpDir.file("a")
 
         when:
         def result1
@@ -57,48 +104,48 @@ class DefaultTransformedFileCacheTest extends ConcurrentSpec {
         def result4
         async {
             start {
-                def cachingTransform = cache.applyCaching(HashCode.fromInt(123), transform)
-                result1 = cachingTransform.transform(new File("a"))
+                result1 = cache.getResult(inputFile, HashCode.fromInt(123), transform)
             }
             start {
-                def cachingTransform = cache.applyCaching(HashCode.fromInt(123), transform)
-                result2 = cachingTransform.transform(new File("a"))
+                result2 = cache.getResult(inputFile, HashCode.fromInt(123), transform)
             }
             start {
-                def cachingTransform = cache.applyCaching(HashCode.fromInt(123), transform)
-                result3 = cachingTransform.transform(new File("a"))
+                result3 = cache.getResult(inputFile, HashCode.fromInt(123), transform)
             }
             start {
-                def cachingTransform = cache.applyCaching(HashCode.fromInt(123), transform)
-                result4 = cachingTransform.transform(new File("a"))
+                result4 = cache.getResult(inputFile, HashCode.fromInt(123), transform)
             }
         }
 
         then:
-        result1 == [new File("a.1")]
-        result2.is(result1)
-        result3.is(result1)
-        result4.is(result1)
+        result1*.name == ["a.1"]
+        result2 == result1
+        result3 == result1
+        result4 == result1
 
         and:
-        1 * transform.transform(new File("a")) >> [new File("a.1")]
+        1 * transform.apply(inputFile, _) >> { File file, File dir -> def r = new File(dir, "a.1"); r.text = "result"; [r] }
         0 * transform._
     }
 
     def "multiple threads can transform files concurrently"() {
         when:
-        def transform = cache.applyCaching(HashCode.fromInt(123)) { file ->
-            instant."$file.name"
-            thread.block()
-            instant."${file.name}_done"
-            [file]
-        }
         async {
             start {
-                transform.transform(new File("a"))
+                cache.getResult(new File("a"), HashCode.fromInt(123)) { file, outDir ->
+                    instant.a
+                    thread.blockUntil.b
+                    instant.a_done
+                    [file]
+                }
             }
             start {
-                transform.transform(new File("b"))
+                cache.getResult(new File("b"), HashCode.fromInt(345)) { file, outDir ->
+                    instant.b
+                    thread.blockUntil.a
+                    instant.b_done
+                    [file]
+                }
             }
         }
 
@@ -107,67 +154,100 @@ class DefaultTransformedFileCacheTest extends ConcurrentSpec {
         instant.b_done > instant.a
     }
 
-    def "does not reuse result when file path is different"() {
-        def transform = Mock(Transformer)
+    def "does not reuse result when transform inputs are different"() {
+        def transform1 = Mock(BiFunction)
+        def transform2 = Mock(BiFunction)
+        def inputFile = tmpDir.file("a")
 
         given:
-        _ * transform.transform(new File("a")) >> [new File("a.1")]
+        _ * transform1.apply(inputFile, _) >> { File file, File dir -> def r = new File(dir, "a.1"); r.text = "result"; [r] }
 
-        def cachingTransform = cache.applyCaching(HashCode.fromInt(123), transform)
-        cachingTransform.transform(new File("a"))
+        cache.getResult(inputFile, HashCode.fromInt(123), transform1)
 
         when:
-        def result = cachingTransform.transform(new File("b"))
+        def result = cache.getResult(inputFile, HashCode.fromInt(234), transform2)
 
         then:
-        result == [new File("b.1")]
+        result*.name == ["a.2"]
 
         and:
-        1 * transform.transform(new File("b")) >> [new File("b.1")]
+        1 * transform2.apply(inputFile, _) >>  { File file, File dir -> def r = new File(dir, "a.2"); r.text = "result"; [r] }
+        0 * transform1._
+        0 * transform2._
+
+        when:
+        def result2 = cache.getResult(inputFile, HashCode.fromInt(123), transform1)
+        def result3 = cache.getResult(inputFile, HashCode.fromInt(234), transform2)
+
+        then:
+        result2*.name == ["a.1"]
+        result3 == result
+
+        and:
+        0 * transform1._
+        0 * transform2._
+    }
+
+    def "runs transform when previous execution failed and cleans up directory"() {
+        def transform = Mock(BiFunction)
+        def failure = new RuntimeException()
+        def inputFile = tmpDir.file("a")
+
+        when:
+        cache.getResult(inputFile, HashCode.fromInt(123), transform)
+
+        then:
+        def e = thrown(RuntimeException)
+        e.is(failure)
+
+        and:
+        1 * transform.apply(inputFile, _) >>  { File file, File dir ->
+            dir.mkdirs()
+            new File(dir, "delete-me").text = "broken"
+            throw failure
+        }
         0 * transform._
 
         when:
-        def result2 = cachingTransform.transform(new File("a"))
-        def result3 = cachingTransform.transform(new File("b"))
+        def result = cache.getResult(inputFile, HashCode.fromInt(123), transform)
 
         then:
-        result2 == [new File("a.1")]
-        result3 == [new File("b.1")]
+        result*.name == ["a.1"]
 
         and:
+        1 * transform.apply(inputFile, _) >>  { File file, File dir ->
+            assert dir.list().length == 0
+            def r = new File(dir, "a.1")
+            r.text = "result"
+            [r]
+        }
         0 * transform._
     }
 
-    def "does not reuse result when transform inputs are different"() {
-        def transform1 = Mock(Transformer)
-        def transform2 = Mock(Transformer)
-
-        given:
-        _ * transform1.transform(new File("a")) >> [new File("a.1")]
-
-        cache.applyCaching(HashCode.fromInt(123), transform1).transform(new File("a"))
+    def "runs transform when output has been removed"() {
+        def transform = Mock(BiFunction)
+        def inputFile = tmpDir.file("a")
 
         when:
-        def result = cache.applyCaching(HashCode.fromInt(234), transform2).transform(new File("a"))
+        def result = cache.getResult(inputFile, HashCode.fromInt(123), transform)
 
         then:
-        result == [new File("a.2")]
+        result.size() == 1
+        result*.name == ["a.1"]
 
         and:
-        1 * transform2.transform(new File("a")) >> [new File("a.2")]
-        0 * transform1._
-        0 * transform2._
+        1 * transform.apply(inputFile, _) >>  { File file, File dir -> def r = new File(dir, "a.1"); r.text = "result"; [r] }
+        0 * transform._
 
         when:
-        def result2 = cache.applyCaching(HashCode.fromInt(123), transform1).transform(new File("a"))
-        def result3 = cache.applyCaching(HashCode.fromInt(234), transform2).transform(new File("a"))
+        result.first().delete()
+        def result2 = cache.getResult(inputFile, HashCode.fromInt(123), transform)
 
         then:
-        result2 == [new File("a.1")]
-        result3 == [new File("a.2")]
+        result2 == result
 
         and:
-        0 * transform1._
-        0 * transform2._
+        1 * transform.apply(inputFile, _) >>  { File file, File dir -> def r = new File(dir, "a.1"); r.text = "result"; [r] }
+        0 * transform._
     }
 }

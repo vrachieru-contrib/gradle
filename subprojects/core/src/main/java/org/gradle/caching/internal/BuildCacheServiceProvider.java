@@ -18,7 +18,7 @@ package org.gradle.caching.internal;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.gradle.StartParameter;
-import org.gradle.api.GradleException;
+import org.gradle.api.internal.file.TemporaryFileProvider;
 import org.gradle.caching.BuildCacheService;
 import org.gradle.caching.BuildCacheServiceFactory;
 import org.gradle.caching.configuration.BuildCache;
@@ -35,18 +35,21 @@ import javax.inject.Inject;
 
 public class BuildCacheServiceProvider {
     private static final Logger LOGGER = LoggerFactory.getLogger(BuildCacheServiceProvider.class);
+    private static final int MAX_ERROR_COUNT_FOR_BUILD_CACHE = 3;
 
     private final BuildCacheConfigurationInternal buildCacheConfiguration;
     private final BuildOperationExecutor buildOperationExecutor;
     private final Instantiator instantiator;
     private final StartParameter startParameter;
+    private final TemporaryFileProvider temporaryFileProvider;
 
     @Inject
-    public BuildCacheServiceProvider(BuildCacheConfigurationInternal buildCacheConfiguration, StartParameter startParameter, Instantiator instantiator, BuildOperationExecutor buildOperationExecutor) {
+    public BuildCacheServiceProvider(BuildCacheConfigurationInternal buildCacheConfiguration, StartParameter startParameter, Instantiator instantiator, BuildOperationExecutor buildOperationExecutor, TemporaryFileProvider temporaryFileProvider) {
         this.buildCacheConfiguration = buildCacheConfiguration;
         this.startParameter = startParameter;
         this.instantiator = instantiator;
         this.buildOperationExecutor = buildOperationExecutor;
+        this.temporaryFileProvider = temporaryFileProvider;
     }
 
     public BuildCacheService createBuildCacheService() {
@@ -95,15 +98,13 @@ public class BuildCacheServiceProvider {
     }
 
     private BuildCacheService createDispatchingBuildCacheService(LocalBuildCache local, BuildCache remote) {
-        // TODO wolfs: Remove this error along with the property to disable pulling
-        if (local.isPush() && remote.isPush() && buildCacheConfiguration.isPullDisabled()) {
-            throw new GradleException("Pushing to both the local and the remote build cache is not supported if pull is disabled.");
-        }
-        return decorateBuildCacheService(
-            false,
+        return new ShortCircuitingErrorHandlerBuildCacheServiceDecorator(
+            MAX_ERROR_COUNT_FOR_BUILD_CACHE,
             new DispatchingBuildCacheService(
                 createDecoratedBuildCacheService(local), local.isPush(),
-                createDecoratedBuildCacheService(remote), remote.isPush())
+                createDecoratedBuildCacheService(remote), remote.isPush(),
+                temporaryFileProvider
+            )
         );
     }
 
@@ -122,14 +123,12 @@ public class BuildCacheServiceProvider {
         return new PushOrPullPreventingBuildCacheServiceDecorator(
             pushDisabled || buildCacheConfiguration.isPushDisabled(),
             buildCacheConfiguration.isPullDisabled(),
-            new LenientBuildCacheServiceDecorator(
-                new ShortCircuitingErrorHandlerBuildCacheServiceDecorator(
-                    3,
-                    new LoggingBuildCacheServiceDecorator(
-                        new BuildOperationFiringBuildCacheServiceDecorator(
-                            buildOperationExecutor,
-                            buildCacheService
-                        )
+            new ShortCircuitingErrorHandlerBuildCacheServiceDecorator(
+                MAX_ERROR_COUNT_FOR_BUILD_CACHE,
+                new LoggingBuildCacheServiceDecorator(
+                    new BuildOperationFiringBuildCacheServiceDecorator(
+                        buildOperationExecutor,
+                        buildCacheService
                     )
                 )
             )
