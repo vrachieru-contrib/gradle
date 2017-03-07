@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 package org.gradle.api.tasks.compile
 
 import org.junit.Before
@@ -23,16 +23,19 @@ import static org.junit.Assert.assertEquals
 
 class ForkOptionsTest {
     static final List PROPS = ['executable', 'memoryInitialSize', 'memoryMaximumSize', 'tempDir']
-    
+
     ForkOptions forkOptions
 
-    @Before public void setUp()  {
+    @Before
+    void setUp()  {
         forkOptions = new ForkOptions()
     }
 
-    @Test public void testCompileOptions() {
+    @Test
+    void testCompileOptions() {
         forkOptions.with {
             assert executable == null
+            assert javaHome == null
             assert memoryInitialSize == null
             assert memoryMaximumSize == null
             assert tempDir == null
@@ -40,7 +43,8 @@ class ForkOptionsTest {
         }
     }
 
-    @Test public void testOptionMap() {
+    @Test
+    void testOptionMap() {
         Map optionMap = forkOptions.optionMap()
         assertEquals(0, optionMap.size())
         PROPS.each { forkOptions."$it" = "${it}Value" }
@@ -49,7 +53,8 @@ class ForkOptionsTest {
         PROPS.each { assert optionMap[it] == "${it}Value" as String }
     }
 
-    @Test public void testDefine() {
+    @Test
+    void testDefine() {
         forkOptions.define(PROPS.collectEntries { [it, "${it}Value" as String ] })
         PROPS.each { assert forkOptions."${it}" == "${it}Value" as String }
     }

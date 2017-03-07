@@ -19,6 +19,9 @@ package org.gradle.api.tasks.compile;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
+import org.gradle.util.DeprecationLogger;
+
+import java.io.File;
 
 /**
  * Fork options for Java compilation. Only take effect if {@code CompileOptions.fork} is {@code true}.
@@ -30,6 +33,8 @@ public class ForkOptions extends BaseForkOptions {
 
     private String tempDir;
 
+    private File javaHome;
+
     /**
      * Returns the compiler executable to be used. If set,
      * a new compiler process will be forked for every compile task.
@@ -37,7 +42,9 @@ public class ForkOptions extends BaseForkOptions {
      */
     @Input
     @Optional
+    @Deprecated
     public String getExecutable() {
+        DeprecationLogger.nagUserOfReplacedProperty("executable", "javaHome");
         return executable;
     }
 
@@ -46,8 +53,29 @@ public class ForkOptions extends BaseForkOptions {
      * a new compiler process will be forked for every compile task.
      * Defaults to {@code null}.
      */
+    @Deprecated
     public void setExecutable(String executable) {
+        DeprecationLogger.nagUserOfReplacedProperty("executable", "javaHome");
         this.executable = executable;
+    }
+
+    /**
+     * Returns the Java home compiler from which the compiler executable will be used.
+     * If set, a new compiler process will be forked for every compile task.
+     * Defaults to {@code null}.
+     */
+    @Internal
+    public File getJavaHome() {
+        return javaHome;
+    }
+
+    /**
+     * Sets the Java home compiler from which the compiler executable will be used.
+     * If set, a new compiler process will be forked for every compile task.
+     * Defaults to {@code null}.
+     */
+    public void setJavaHome(File javaHome) {
+        this.javaHome = javaHome;
     }
 
     /**
