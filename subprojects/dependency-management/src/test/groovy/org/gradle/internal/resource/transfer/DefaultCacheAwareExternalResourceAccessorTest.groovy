@@ -47,7 +47,7 @@ class DefaultCacheAwareExternalResourceAccessorTest extends Specification {
     }
     final cacheLockingManager = Mock(CacheLockingManager)
     final ImmutableModuleIdentifierFactory moduleIdentifierFactory = Mock()
-    final cache = new DefaultCacheAwareExternalResourceAccessor(repository, index, timeProvider, temporaryFileProvider, cacheLockingManager, moduleIdentifierFactory)
+    final cache = new DefaultCacheAwareExternalResourceAccessor(repository, index, timeProvider, temporaryFileProvider, cacheLockingManager, moduleIdentifierFactory, producerGuard)
 
     def "returns null when the request resource is not cached and does not exist in the remote repository"() {
         def uri = new URI("scheme:thing")
