@@ -20,7 +20,6 @@ import org.gradle.performance.AbstractGradleVsMavenPerformanceTest
 import org.gradle.performance.mutator.ApplyNonAbiChangeToJavaSourceFileMutator
 import spock.lang.Unroll
 
-import static org.gradle.performance.generator.JavaTestProject.LARGE_JAVA_MULTI_PROJECT
 import static org.gradle.performance.generator.JavaTestProject.LARGE_MONOLITHIC_JAVA_PROJECT
 
 /**
@@ -52,11 +51,6 @@ class JavaTestGradleVsMavenPerformanceTest extends AbstractGradleVsMavenPerforma
         LARGE_MONOLITHIC_JAVA_PROJECT | 'clean test'      | 'clean test'
         LARGE_MONOLITHIC_JAVA_PROJECT | 'clean build'     | 'clean verify'
         LARGE_MONOLITHIC_JAVA_PROJECT | 'cleanTest build' | 'verify'
-
-        LARGE_JAVA_MULTI_PROJECT      | 'cleanTest test'  | 'test'
-        LARGE_JAVA_MULTI_PROJECT      | 'clean test'      | 'clean test'
-        LARGE_JAVA_MULTI_PROJECT      | 'clean build'     | 'clean verify'
-        LARGE_JAVA_MULTI_PROJECT      | 'cleanTest build' | 'verify'
     }
 
     @Unroll
@@ -80,6 +74,5 @@ class JavaTestGradleVsMavenPerformanceTest extends AbstractGradleVsMavenPerforma
         where:
         testProject                   | gradleTasks | equivalentMavenTasks | fileToChange
         LARGE_MONOLITHIC_JAVA_PROJECT | 'build'     | 'verify'             | "src/main/java/org/gradle/test/performance/largemonolithicjavaproject/p0/Production0.java"
-        LARGE_JAVA_MULTI_PROJECT      | 'build'     | 'verify'             | "project450/src/main/java/org/gradle/test/performance/largejavamultiproject/project450/p2250/Production45000.java"
     }
 }
